@@ -1,0 +1,4 @@
+sample,fastq_1,fastq_2,strandedness
+3h_Sal-Brk-dark,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A3_S763_L004_R1_001.fastq.gz,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A3_S763_L004_R2_001.fastq.gz,reverse
+3h_Sal-Brk-light,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A4_S764_L004_R1_001.fastq.gz,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A4_S764_L004_R2_001.fastq.gz,reverse
+3h_Ubi-Brk-light,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A5_S765_L004_R1_001.fastq.gz,/nemo/stp/sequencing/inputs/instruments/fastq/230811_A01366_0434_BHHFLWDSX7/fastq/RN23010/MIK5655A5_S765_L004_R2_001.fastq.gz,reverse

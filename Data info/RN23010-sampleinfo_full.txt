@@ -1,0 +1,10 @@
+Sample	Group	Repeat
+3h_Sal-Brk-dark_1	control	1
+3h_Sal-Brk-light_1	sal-brk	1
+3h_Ubi-Brk-light_1	ubi-brk	1
+3h_Sal-Brk-light_3	sal-brk	3
+3h_Ubi-Brk-light_3	ubi-brk	3
+3h_Sal-Brk-dark_2	control	2
+3h_Sal-Brk-light_2	sal-brk	2
+3h_Ubi-Brk-light_2	ubi-brk	2
+3h_Sal-Brk-dark_3	control	3

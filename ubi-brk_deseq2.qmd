@@ -1,0 +1,306 @@
+---
+title: "Ubi-brk-deseq2"
+format: pdf
+editor: visual
+---
+
+## Upload packagaes
+
+```{r}
+#| message: false
+library(DESeq2)
+library(apeglm)
+library(dplyr)
+library(tibble)
+library(data.table)
+library(ggplot2)
+library(ggfortify)
+library(ggrepel)
+library(RColorBrewer)
+library(pheatmap)
+library(plotly)
+library(magrittr)
+library(AnnotationDbi)
+library(org.Dm.eg.db)
+library(writexl)
+```
+
+## Load data
+
+```{r}
+counts <- fread(file ="rsem.merged.gene_counts.tsv", header=TRUE)
+sample_info <- read.delim(file = "Data info/RN23010-sampleinfo_full.txt")
+
+```
+
+## Prepare a matrix for DESeq:
+
+Make first column row names, switch to integers, create a matrix object
+
+```{r}
+info<-sample_info %>% column_to_rownames("Sample")
+info %>%  filter(Group !='sal-brk') ->ninfo
+
+gcounts <- counts[, -c(2,6:8)]
+
+dt <- as.data.frame(gcounts) %>%
+  column_to_rownames("gene_id") 
+
+dt[,1:6] <- lapply(dt[,1:6], as.integer)
+
+mcountdata <- as.matrix(dt) 
+
+has_rownames(dt)
+has_rownames(ninfo)
+```
+
+## Matching column order between the tables
+
+```{r}
+all(rownames(ninfo) == colnames(mcountdata))
+mcountdata_s <- mcountdata[, rownames(ninfo)]
+all(rownames(ninfo) == colnames(mcountdata_s))
+```
+
+## Creating levels for samples.
+
+It will read the first level to be compared with the rest.
+
+```{r}
+ninfo$Group <- factor(ninfo$Group,levels = c("control", "ubi-brk"))
+info$Repeat <- as.factor(info$Repeat)
+```
+
+# Run deseq.
+
+The object class used by the DESeq2 package to store the read counts and the intermediate estimated quantities during statistical analysis is the **DESeqDataSet**, which will usually be represented in the code here as an object **dds**.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = mcountdata_s,
+                              colData = ninfo,
+                              design = ~Group)
+dds <- DESeq(dds)
+res <- results(dds)
+sum(res$padj < 0.01 & res$log2FoldChange< (-0.3), na.rm=TRUE)
+resultsNames(dds)
+```
+
+```{r}
+res %>% 
+  as.data.frame() %>% 
+  filter(padj<0.01) ->dres
+```
+
+```{r}
+dres$gene = mapIds(
+  org.Dm.eg.db,
+  keys = rownames(dres),
+  column ="SYMBOL",
+  keytype = "FLYBASE",
+  multiVals = "first"
+)
+```
+
+## Data shrinkage
+
+```{r}
+ubiLFC <- lfcShrink(dds, coef="Group_ubi.brk_vs_control", type="apeglm")
+
+plotMA(res, ylim=c(-4,4))
+plotMA(ubiLFC, ylim=c(-4,4))
+```
+
+```{r}
+ubiLFC %>% 
+  as.data.frame() %>% 
+  filter(padj<0.01) %>% 
+  arrange(log2FoldChange) -> ubiLFC_s
+
+```
+
+## Adding gene names to all data for ubiLFC
+
+```{r}
+ubiLFC %>% 
+  as.data.frame() %>% 
+  filter(baseMean>100) %>% 
+  arrange(log2FoldChange) -> ubiLFC_all
+```
+
+```{r}
+ubiLFC_all$gene = mapIds(
+  org.Dm.eg.db,
+  keys = rownames(ubiLFC_all),
+  column ="SYMBOL",
+  keytype = "FLYBASE",
+  multiVals = "first"
+)
+```
+
+```{r}
+ubiLFC_s %>% 
+  filter(log2FoldChange<(-0.3)) ->ubiLFC_s20
+```
+
+```{r}
+ubiLFC_s20$gene = mapIds(
+  org.Dm.eg.db,
+  keys = rownames(ubiLFC_s20),
+  column ="SYMBOL",
+  keytype = "FLYBASE",
+  multiVals = "first"
+)
+```
+
+## Normalized counts for some genes
+
+```{r}
+plotCounts(dds, gene="FBgn0024250", intgroup="Group") #Brk 
+plotCounts(dds, gene="FBgn0000179", intgroup="Group") #omb norm counts
+plotCounts(dds, gene="FBgn0261648", intgroup="Group") #Sal
+plotCounts(dds, gene="FBgn0025360", intgroup="Group") #optix
+plotCounts(dds, gene="FBgn0011706", intgroup="Group") #reaper
+plotCounts(dds, gene="FBgn0003525", intgroup="Group") #string
+plotCounts(dds, gene="FBgn0262656", intgroup="Group") #myc
+plotCounts(dds, gene="FBgn0039067", intgroup="Group") #wda
+plotCounts(dds, gene="FBgn0051865", intgroup="Group") #ada1-1
+plotCounts(dds, gene="FBgn0031745", intgroup="Group") #rau-check me
+plotCounts(dds, gene="FBgn0035049", intgroup="Group") #rau-check me
+plotCounts(dds, gene="FBgn0035049", intgroup="Group") #rau-check me
+plotCounts(dds, gene="FBgn0003997", intgroup="Group") 
+
+
+```
+
+```{r}
+
+brk <- plotCounts(dds, gene="FBgn0024250", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Brinker") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold"))+ expand_limits(y = 0)
+brk
+```
+
+```{r}
+omb <- plotCounts(dds, gene="FBgn0000179", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) + theme_bw() +
+  ggtitle("Omb") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+omb
+```
+
+```{r}
+
+dad <- plotCounts(dds, gene="FBgn0020493", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) + theme_bw() +
+  ggtitle("Dad") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+dad
+```
+
+```{r}
+sal <- plotCounts(dds, gene="FBgn0261648", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) + theme_bw() +
+  ggtitle("Sal") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+sal
+```
+
+```{r}
+reaper <- plotCounts(dds, gene="FBgn0011706", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Reaper") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+reaper
+```
+
+```{r}
+hid <- plotCounts(dds, gene="FBgn0003997", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Hid") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+hid
+```
+
+```{r}
+puc <- plotCounts(dds, gene="FBgn0243512", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Puc") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+puc
+```
+
+```{r}
+egr <- plotCounts(dds, gene="FBgn0033483", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE)  + theme_bw() +
+  ggtitle("Egr") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+egr
+```
+
+```{r}
+mmp1 <- plotCounts(dds, gene="FBgn0035049", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Mmp1") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+mmp1
+```
+
+```{r}
+myc <- plotCounts(dds, gene="FBgn0262656", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Myc") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+myc
+```
+
+```{r}
+
+cycE <- plotCounts(dds, gene="FBgn0010382", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("CycE") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+cycE
+```
+
+```{r}
+
+stg <- plotCounts(dds, gene="FBgn0003525", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("String/Cdc25") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+stg
+```
+
+```{r}
+pen <- plotCounts(dds, gene="FBgn0267727", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Pen") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+pen
+```
+
+```{r}
+ubiLFC_all %>% 
+  filter(baseMean>100, log2FoldChange>0.5, padj<0.01) %>% 
+  arrange(log2FoldChange)-> ubi_up001
+ubi_up001 %>% rownames_to_column("geneID") ->ubi_up001xl
+write_xlsx(ubi_up001xl, "./ubi_up001.xlsx")
+```
+
+```{r}
+upd1 <- plotCounts(dds, gene="FBgn0004956", intgroup=c("Group","Repeat"), returnData = TRUE)%>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("Upd1") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+upd1
+```
+
+```{r}
+chinmo <- plotCounts(dds, gene="FBgn0086758", intgroup=c("Group","Repeat"), returnData = TRUE) %>%
+  ggplot() + aes(Group, count) + geom_jitter(aes(colour=Repeat), width = 0.05, size=3, show.legend = FALSE) +  theme_bw() +
+  ggtitle("chinmo") +theme(plot.title=element_text( hjust=0.5, vjust=0.5, face='bold'),
+ axis.title = element_blank(), axis.text.x = element_text(size=15), axis.text.y=element_text(size= 10, face="bold")) + expand_limits(y = 0)
+chinmo
+
+```

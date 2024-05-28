@@ -1,0 +1,52 @@
+---
+title: "cellcycle"
+author: "Masha"
+format: pdf
+editor: visual
+---
+
+## Here is the list of Drosophila cell cycle genes
+
+This was downloaded from <https://github.com/hbc/tinyatlas/blob/master/cell_cycle/Drosophila_melanogaster.csv>.
+
+## Uploading library
+
+```{r}
+#| message: false
+library(data.table)
+library(AnnotationDbi)
+library(org.Dm.eg.db)
+```
+
+## Data import
+```{r}
+cc<- fread(file ="cellcycle_dm.csv", header=TRUE)
+```
+
+```{r}
+cc = subset(cc, select = -(modified) )
+```
+
+```{r}
+ccdata <- as.data.frame(cc) %>%
+  column_to_rownames("geneID") 
+has_rownames(ccdata)
+
+```
+
+
+```{r}
+cc$gene = mapIds(
+  org.Dm.eg.db,
+  keys = rownames(ccdata),
+  column ="SYMBOL",
+  keytype = "FLYBASE",
+  multiVals = "first"
+)
+```
+
+## Saving a new file
+```{r}
+fwrite(cc, file = "./cellcycle_genes.csv")
+```
+
