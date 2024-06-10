@@ -35,17 +35,16 @@ All conditions were processed at the same time with several rounds of sample col
 ```{r loading libraries, echo=TRUE, message = FALSE, warning=FALSE}
 library(DESeq2)
 library(apeglm)
-library(dplyr)
-library(tibble)
+# library(dplyr)
+# library(tibble)
 library(tidyverse)
 library(data.table)
-library(ggplot2)
+# library(ggplot2)
 library(ggfortify)
 library(ggrepel)
 library(RColorBrewer)
 library(pheatmap)
 library(plotly)
-library(magrittr)
 library(AnnotationDbi)
 library(org.Dm.eg.db)
 library(writexl)
@@ -174,68 +173,10 @@ library(clusterProfiler)
 library(enrichplot)
 ```
 
-```{r}
-# we want the log2 fold change 
-original_gene_list <- ubiLFC_s_pel.rm$log2FoldChange
-
-# name the vector
-names(original_gene_list) <- ubiLFC_s_pel.rm$gene
-
-# omit any NA values 
-gene_list<-na.omit(original_gene_list)
-
-# sort the list in decreasing order (required for clusterProfiler)
-gene_list = sort(gene_list, decreasing = TRUE)
-
-```
-
-```{r}
-gse<- gseGO (gene_list,
-             OrgDb=org.Dm.eg.db,
-             ont="BP",
-             keyType="SYMBOL",
-             pvalueCutoff = 0.05, 
-             verbose = TRUE, 
-             minGSSize=3,
-             pAdjustMethod = "BH")
-summary(gse) %>% as.tibble() -> gse_sum
-gseaplot(gse, by = "all", title = gse$Description[1], geneSetID = 1)
-```
 slim1-more general, slim2 more specific
-```{r}
-summary(gse) %>% as.tibble() -> gse_sum
-gse_sum %>% filter(p.adjust<0.05)
-```
-### Correct way to do GSEA is to use it on the whole dataset, and then rank according FC*pvalue
-```{r}
-ubiLFC_genes %>% 
-  mutate(rank_stats=log2FoldChange*-log10(padj)) %>% 
-  arrange(desc(rank_stats)) %>% 
-  filter(!stringr::str_detect(ID, "FBti") & (baseMean>100)) %>% 
-  na.omit() %>% 
-  select(gene, rank_stats) %>% 
-  mutate(rank_stats=ifelse(is.infinite(rank_stats), 1000, rank_stats)) %>% 
-  deframe()-> ubiLFC_rank
-```
 
-```{r}
-gse_cor <- gseGO(ubiLFC_rank,
-                 ont="BP",
-                 OrgDb=org.Dm.eg.db,
-                 keyType="SYMBOL",
-                 pvalueCutoff = 0.5, 
-                 verbose = TRUE, 
-                 minGSSize=3,
-                 pAdjustMethod = "BH")
-summary(gse_cor) %>% as.tibble() -> gse_cor.sum
-gseaplot(gse_cor, by = "all", title = gse_cor$Description[1], geneSetID = 1)
-```
 
-```{r}
-intersect(names(ubiLFC_rank), names(gene_list))
-```
-
-### Another way to make a ranked list is to take LFC values and sort them only according to FC. Which result willI get then?
+### A way to make a ranked list is to take LFC values and sort them only according to FC. Which result will I get then?
 
 ```{r}
 ubiLFC_genes %>% 
@@ -256,20 +197,16 @@ gse_fc<- gseGO (ubiLFC_fc_rank,
              minGSSize=3,
              pAdjustMethod = "BH")
 summary(gse_fc) %>% as.tibble() -> gse_fc_sum
-gseaplot(gse_fc, by = "all", title = gse_fc$Description[1], geneSetID = 1)
+# gseaplot(gse_fc, by = "all", title = gse_fc$Description[1], geneSetID = 1)
 ```
+
 ```{r}
 #gse_fc_s<-lapply(gse_fc@result$NES, sort, decreasing = TRUE)
 #dotplot(gse_fc_s, showCategory=10)
 ```
 
-```{r}
-top20<-dotplot(gse_fc, showCategory=10)
-up_down<-dotplot(gse_fc, showCategory=10, split=".sign", orderBy="Counts") + facet_grid(.~.sign)
-up_down
-#cowplot::plot_grid(top20, up_down, ncol=1, labels=LETTERS[1:2])
-```
-```{r}
+
+```{r, eval=FALSE}
 # 1. Open jpeg file
 jpeg("gsea.jpg", width = 500, height = 700)
 # 2. Create the plot
@@ -278,20 +215,10 @@ up_down
 dev.off()
 ```
 
-```{r}
-
-ribo<-gseaplot2(gse_fc, geneSetID = "GO:0042254", title = gse_fc$Description[1])
-resp<-gseaplot2(gse_fc, geneSetID = "GO:0022904", title = gse_fc$Description[13])
-repl<-gseaplot2(gse_fc, geneSetID = "GO:0006260", title = gse_fc$Description[8])
-ribo_plot <- cowplot::as_ggplot(ribo)
-resp_plot <- as_ggplot(resp)
-repl_plot <- as_ggplot(repl)
-cowplot::plot_grid(ribo_plot, resp_plot, repl_plot, labels=LETTERS[1:3])
-```
 
 ### Yet another way is to use Wald statistics, that incorporates the relationship between pvalue and FC
 
-```{r}
+```{r, eval=FALSE}
 wald_stat <- dds@rowRanges@elementMetadata@listData$WaldStatistic_Group_ubi.brk_vs_control
 dds_res <- res %>% data.frame()
 dds_res %>% 
@@ -307,7 +234,7 @@ dds_res %>%
   rename(., ID=rowname) -> dds_res_genes
 ```
 
-```{r}
+```{r, eval=FALSE}
 dds_res_genes %>% 
   arrange(desc(stat)) %>% 
   filter(!stringr::str_detect(ID, "FBti")) %>% 
@@ -316,7 +243,7 @@ dds_res_genes %>%
   deframe()-> dds_wald_rank
 ```
 
-```{r}
+```{r wald stat based GSEA, eval=FALSE}
 gse_wald<- gseGO (dds_wald_rank,
              ont="BP",
              OrgDb=org.Dm.eg.db,
@@ -326,26 +253,7 @@ gse_wald<- gseGO (dds_wald_rank,
              minGSSize=3,
              pAdjustMethod = "BH")
 summary(gse_wald) %>% as.tibble() -> gse_wald_sum
-gseaplot(gse_wald, by = "all", title = gse_wald$Description[1], geneSetID = 1)
-```
-```{r}
-dotplot(gse_wald, showCategory=5, split=".sign") + facet_grid(.~.sign)
-```
-```{r}
-dotplot(gse_wald, showCategory=20)
 ```
 
-```{r}
-wald<-heatplot(gse_wald, showCategory="rRNA metabolic process", foldChange=ubiLFC_fc_rank)
-fc<-heatplot(gse_fc, showCategory="rRNA metabolic process", foldChange=ubiLFC_fc_rank)
-cowplot::plot_grid(wald, fc, ncol=1, labels=LETTERS[1:2])
-```
-```{r}
-gseaplot2(gse_wald, geneSetID = 1, title = gse_wald$Description[1])
-```
 
-```{r}
-library(ggupset)
-upsetplot(gse_wald, n=5)
-```
 
